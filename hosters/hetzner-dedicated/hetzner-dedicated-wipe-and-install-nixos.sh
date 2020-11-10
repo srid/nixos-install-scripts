@@ -92,12 +92,22 @@ done
 [[ -n $VERBOSE ]] && set -x
 
 # Install dependencies
-apt-get update
 apt-get install -y sudo
 
 # Inspect existing disks
 declare -a DISKS
 readarray -t DISKS < <(lsblk -Jl | jq -r '.blockdevices[] | select(.type == "disk") | .name')
+
+# Helper function to get the correct partition name given a disk name and partition number
+# partname sda 2 => /dev/sda2
+# partname nvme0n1 2 => /dev/nvme0n1p2
+partname() {
+  if [[ $1 == nvme* ]]; then
+    echo "/dev/${1}p${2}"
+  else
+    echo "/dev/${1}${2}"
+  fi
+}
 
 # Undo existing setups to allow running the script multiple times to iterate on it.
 # We allow these operations to fail for the case the script runs the first time.
@@ -153,11 +163,11 @@ partprobe
 
 for disk in "${DISKS[@]}"; do
   # Wait for all devices to exist
-  udevadm settle --timeout=5 --exit-if-exists="/dev/${disk}1"
-  udevadm settle --timeout=5 --exit-if-exists="/dev/${disk}2"
+  udevadm settle --timeout=5 --exit-if-exists="$(partname "$disk" 1)"
+  udevadm settle --timeout=5 --exit-if-exists="$(partname "$disk" 2)"
 
   # Wipe any previous RAID signatures
-  mdadm --zero-superblock --force "/dev/${disk}2"
+  mdadm --zero-superblock --force "$(partname "$disk" 2)"
 done
 
 
@@ -172,9 +182,15 @@ done
 #   https://bugzilla.redhat.com/show_bug.cgi?id=606481#c14
 # and the followup comments by Doug Ledford.
 
+# An array of all partitions in the RAID
+declare -a RAIDPARTS
+for disk in "${DISKS[@]}"; do
+  RAIDPARTS+=( "$(partname "$disk" 2)" )
+done
+
 # shellcheck disable=SC2046
 mdadm --create --run --verbose /dev/md0 --level="$RAIDLEVEL" --raid-devices="${#DISKS[@]}" \
-      --homehost="$HOSTNAME" --name=root0 $(printf "/dev/%s2" "${DISKS[@]}")
+      --homehost="$HOSTNAME" --name=root0 "${RAIDPARTS[@]}"
 
 # Assembling the RAID can result in auto-activation of previously-existing LVM
 # groups, preventing the RAID block device wiping below with
