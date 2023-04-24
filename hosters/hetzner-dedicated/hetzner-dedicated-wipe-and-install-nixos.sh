@@ -408,7 +408,7 @@ cat >| /mnt/etc/nixos/configuration.nix <<EOF
 EOF
 
 # Install NixOS
-PATH="$PATH" NIX_PATH="$NIX_PATH" "$(command -v nixos-install)" --no-root-passwd --root /mnt --max-jobs "$(nproc)"
+NIX_PATH="$HOME/.nix-defexpr/channels/nixpkgs" PATH="$PATH" NIX_PATH="$NIX_PATH" "$(command -v nixos-install)" --no-root-passwd --root /mnt --max-jobs "$(nproc)"
 
 umount /mnt
 
