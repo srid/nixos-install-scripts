@@ -29,6 +29,7 @@
 RAIDLEVEL=1
 HOSTNAME='hetzner'
 NETWORK_BRIDGE=0
+VERBOSE=0
 
 # Default SSH key
 SSH_PUBKEY="$(xargs < <(find "$HOME/.ssh" -name '*.pub' -exec cat {} \; -quit))"
@@ -37,8 +38,8 @@ SSH_PUBKEY="$(xargs < <(find "$HOME/.ssh" -name '*.pub' -exec cat {} \; -quit))"
 set -euo pipefail
 
 # Parameter parsing
-while true; do
-  case "$1" in
+while [[ -n "${1-}" ]]; do
+  case $1 in
     # Construct RAID in striped mode rather than mirror
     --raid0)
       RAIDLEVEL=0
@@ -81,6 +82,7 @@ while true; do
 						--pubkey FILE             Provide the path to a file containing an SSH public key to be provisioned to the root user
 						--verbose|-h              Enable shell command tracing
 				EOF
+      exit 0
       ;;
 
     # Stop parsing option on first unknown parameter
@@ -237,6 +239,7 @@ mount /dev/disk/by-label/root /mnt
 #   https://github.com/NixOS/nix/issues/936#issuecomment-475795730
 mkdir -p /etc/nix
 echo "build-users-group =" > /etc/nix/nix.conf
+echo "experimental-features = nix-command" >> /etc/nix/nix.conf
 
 curl -L https://nixos.org/nix/install | sh
 set +u +x # sourcing this may refer to unset variables that we have no control over
@@ -377,7 +380,7 @@ cat >| /mnt/etc/nixos/configuration.nix <<EOF
         via = "fe80::1";
       }];
     };
-  }
+  };
 
   networking = {
     nameservers = [ "8.8.8.8" "8.8.4.4" ];
